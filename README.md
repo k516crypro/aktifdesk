@@ -1,7 +1,7 @@
 # AktifDesk
 
-[![Build](https://github.com/clarksonjeremy909/flutter/actions/workflows/build.yml/badge.svg)](https://github.com/clarksonjeremy909/flutter/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/clarksonjeremy909/flutter)](https://github.com/clarksonjeremy909/flutter/releases)
+[![Build](https://github.com/k516crypro/aktifdesk/actions/workflows/build.yml/badge.svg)](https://github.com/k516crypro/aktifdesk/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/k516crypro/aktifdesk)](https://github.com/k516crypro/aktifdesk/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Turn your Android phone or tablet into a low-latency game-streaming remote and controller for your Windows PC — powered by [Sunshine](https://github.com/LizardByte/Sunshine) / [Moonlight](https://moonlight-stream.org/).**
@@ -92,11 +92,11 @@ Code map:
 
 ## Download
 
-Grab the latest build from **[GitHub Releases](https://github.com/clarksonjeremy909/flutter/releases/latest)**:
+Grab the latest build from **[GitHub Releases](https://github.com/k516crypro/aktifdesk/releases/latest)**:
 
 - `AktifDesk-android.apk` — Android client (universal APK: arm64-v8a, armeabi-v7a, x86_64)
 - `AktifDesk-android-arm64-v8a.apk` / `-armeabi-v7a.apk` / `-x86_64.apk` — smaller per-ABI APKs (most phones: `arm64-v8a`)
-- **`AktifDesk-windows-x64.zip` — not attached yet.** GitHub-hosted Actions runners on this account fail to start (jobs complete in ~1–4 s with no runner assigned), so the Windows MSVC build cannot be produced from Linux CI. Build it locally on any Windows PC with Flutter — see [Building the Windows exe](#building-the-windows-exe) below — then upload the zip to the release.
+- `AktifDesk-windows-x64.zip` — Windows host (`AktifDesk.exe` + DLLs). Built by GitHub Actions (`windows-2022`). If the zip is missing from a release, build it locally — see [Building the Windows exe](#building-the-windows-exe).
 
 > The APK is currently signed with a debug key. Android will ask you to allow installation from unknown sources.
 
@@ -127,7 +127,7 @@ Grab the latest build from **[GitHub Releases](https://github.com/clarksonjeremy
 Requirements: Flutter (stable, Dart ≥ 3.13), Android SDK + JDK 17 for Android, Visual Studio 2022 with **Desktop development with C++** (including the **C++ ATL** component) for Windows.
 
 ```bash
-git clone https://github.com/clarksonjeremy909/flutter.git aktifdesk
+git clone https://github.com/k516crypro/aktifdesk.git aktifdesk
 cd aktifdesk
 flutter pub get
 
@@ -149,7 +149,7 @@ Flutter's Windows target needs the **MSVC** toolchain (Visual Studio). It **cann
 3. Clone and build (one-liner script):
 
 ```powershell
-git clone https://github.com/clarksonjeremy909/flutter.git aktifdesk
+git clone https://github.com/k516crypro/aktifdesk.git aktifdesk
 cd aktifdesk
 powershell -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1
 ```
@@ -169,14 +169,14 @@ Compress-Archive -Path .\build\windows\x64\runner\Release\* `
 4. Attach the zip to the release (replace the tag if you publish a newer one):
 
 ```powershell
-gh release upload v1.1.0 .\AktifDesk-windows-x64.zip --repo clarksonjeremy909/flutter --clobber
+gh release upload v1.1.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk --clobber
 ```
 
 `scripts/build-windows.cmd` is a double-click wrapper around the PowerShell script.
 
 ### CI note
 
-`.github/workflows/build.yml` is set up for Windows + Android + Release on `push` / `workflow_dispatch` / `v*` tags. On this GitHub account, hosted runners currently **never start** (jobs fail in ~1–4 s with `runner_name` empty and `steps=0`, billable ms = 0). Until that is fixed in GitHub account/Actions settings, produce the Windows zip locally as above.
+`.github/workflows/build.yml` builds **Windows** (`windows-2022`) and **Android** (`ubuntu-latest`) on `push` to `main`, `workflow_dispatch`, and `v*` tags. On tags, a Release job attaches `AktifDesk-windows-x64.zip` and `AktifDesk-android.apk`. If Actions is unavailable, build Windows locally as above.
 
 ---
 
@@ -184,7 +184,7 @@ gh release upload v1.1.0 .\AktifDesk-windows-x64.zip --repo clarksonjeremy909/fl
 
 Being honest about where v1.1.0 stands:
 
-- **Windows-only code paths have not been tested on real hardware yet.** The `SetThreadExecutionState` / `SendInput` FFI calls and Sunshine service control (`sc`, `tasklist`, `taskkill`) are covered by unit tests with fakes. A Windows release zip is **not** on GitHub Releases yet (hosted Actions runners do not start on this account); build it locally — see [Building the Windows exe](#building-the-windows-exe).
+- **Windows-only code paths have not been tested on real hardware yet.** The `SetThreadExecutionState` / `SendInput` FFI calls and Sunshine service control (`sc`, `tasklist`, `taskkill`) are covered by unit tests with fakes. Grab `AktifDesk-windows-x64.zip` from [Releases](https://github.com/k516crypro/aktifdesk/releases/latest), or build it locally — see [Building the Windows exe](#building-the-windows-exe).
 - **Anti-cheat may block virtual input.** Some games/anti-cheat systems ignore or flag `SendInput` events and virtual devices. Use at your own risk and respect each game's terms of service.
 - **AFK is not guaranteed.** Games with their own server-side or input-pattern AFK detection may still kick you; the AFK engine only resets the OS/game idle timers that react to local input.
 - **Video decode is handed to the installed Moonlight app.** AktifDesk does not yet render the stream itself, so the in-app player features (side menu, FPS selector, editable virtual controls) are on the roadmap.
@@ -196,7 +196,7 @@ Being honest about where v1.1.0 stands:
 - **Release APK is debug-signed**; a proper release keystore is a TODO.
 - The UI is currently in Turkish; English localisation is a TODO.
 
-Contributions and bug reports are welcome via [Issues](https://github.com/clarksonjeremy909/flutter/issues).
+Contributions and bug reports are welcome via [Issues](https://github.com/k516crypro/aktifdesk/issues).
 
 ---
 
