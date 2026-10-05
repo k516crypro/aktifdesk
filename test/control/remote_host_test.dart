@@ -83,6 +83,16 @@ void main() {
     final share = await session.screenShare(enable: true);
     expect(share['ok'], isFalse);
     expect(share['reason'], 'screen_share_not_implemented');
+
+    final tap = await session.tap(x: 0.5, y: 0.5);
+    expect(tap['ok'], isTrue);
+    expect(agent.gestures, contains('tap:0.5,0.5'));
+
+    await session.swipe(x1: 0.2, y1: 0.2, x2: 0.8, y2: 0.8);
+    expect(agent.gestures.any((g) => g.startsWith('swipe:')), isTrue);
+
+    await session.key('back');
+    expect(agent.gestures, contains('key:back'));
   });
 
   test('pc-client mode still rejects host.* without handler meaning', () async {

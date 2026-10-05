@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app/app_settings.dart';
 import 'app/client_controller.dart';
 import 'app/host_controller.dart';
 import 'app/remote_client_controller.dart';
@@ -12,6 +13,9 @@ import 'ui/screens/host_screen.dart';
 import 'ui/screens/phone_onboarding.dart';
 import 'ui/screens/remote_client_screen.dart';
 import 'ui/screens/remote_host_screen.dart';
+import 'ui/screens/settings_screen.dart';
+import 'ui/screens/tutorial_screen.dart';
+import 'ui/theme/aktif_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,14 +37,12 @@ class AktifDeskApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: 'AktifDesk',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        darkTheme: ThemeData(
-            colorSchemeSeed: Colors.indigo, brightness: Brightness.dark, useMaterial3: true),
+        theme: AktifTheme.light(),
+        darkTheme: AktifTheme.dark(),
         home: home,
       );
 }
 
-/// Android entry: role picker, then the matching shell.
 class _AndroidRoot extends StatefulWidget {
   const _AndroidRoot();
   @override
@@ -50,6 +52,8 @@ class _AndroidRoot extends StatefulWidget {
 class _AndroidRootState extends State<_AndroidRoot> {
   PhoneLaunchRole? _role;
   bool _loading = true;
+  bool _showTutorial = false;
+  AppSettings? _settings;
   ClientController? _pcClient;
   RemoteHostController? _remoteHost;
   RemoteClientController? _remoteClient;
@@ -61,6 +65,8 @@ class _AndroidRootState extends State<_AndroidRoot> {
   }
 
   Future<void> _restore() async {
+    final settings = await AppSettings.load();
+    _settings = settings;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('phone.role');
     final role = switch (raw) {
@@ -72,7 +78,12 @@ class _AndroidRootState extends State<_AndroidRoot> {
     if (role != null) {
       await _enter(role, persist: false);
     }
-    if (mounted) setState(() => _loading = false);
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _showTutorial = !settings.tutorialDone && role == null;
+      });
+    }
   }
 
   Future<void> _enter(PhoneLaunchRole role, {bool persist = true}) async {
@@ -88,17 +99,19 @@ class _AndroidRootState extends State<_AndroidRoot> {
       );
     }
     await _disposeControllers();
+    final settings = _settings ?? await AppSettings.load();
+    _settings = settings;
     switch (role) {
       case PhoneLaunchRole.managePc:
         final c = ClientController(skipWelcome: true);
         await c.init();
         _pcClient = c;
       case PhoneLaunchRole.remoteHost:
-        final c = RemoteHostController();
+        final c = RemoteHostController(settings: settings);
         await c.init();
         _remoteHost = c;
       case PhoneLaunchRole.remoteClient:
-        final c = RemoteClientController();
+        final c = RemoteClientController(settings: settings);
         await c.init();
         _remoteClient = c;
     }
@@ -134,11 +147,28 @@ class _AndroidRootState extends State<_AndroidRoot> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    if (_showTutorial && _settings != null) {
+      return TutorialScreen(
+        settings: _settings!,
+        onDone: () => setState(() => _showTutorial = false),
+      );
+    }
     final role = _role;
     if (role == null) {
       return WelcomeView(
         onContinue: () => _enter(PhoneLaunchRole.managePc),
         onPickRole: _enter,
+        onOpenSettings: _settings == null
+            ? null
+            : () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(
+                      settings: _settings!,
+                    ),
+                  ),
+                );
+              },
       );
     }
     return switch (role) {
@@ -151,8 +181,8 @@ class _AndroidRootState extends State<_AndroidRoot> {
   }
 }
 
-/// Ensures AFK is released (SetThreadExecutionState cleared) when the window
-/// is closed or the app exits.
+// Re-export for WelcomeView settings button — import settings in main
+
 class _HostShell extends StatefulWidget {
   const _HostShell({required this.c});
   final HostController c;
@@ -172,7 +202,7 @@ class _HostShellState extends State<_HostShell> {
   @override
   void initState() {
     super.initState();
-    _l.hashCode; // instantiate listener
+    _l.hashCode;
   }
 
   @override

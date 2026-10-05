@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../app/remote_host_controller.dart';
 import '../../core/control/control_protocol.dart';
 import '../../core/control/phone_control_server.dart';
+import '../widgets/host_permissions_checklist.dart';
 import 'phone_onboarding.dart';
+import 'settings_screen.dart';
 
-/// Phone-as-host: show pairing code, then connected status + basic info.
+/// Phone-as-host: pairing code, permission checklist, connected status.
 class RemoteHostShell extends StatelessWidget {
   const RemoteHostShell({super.key, required this.c, this.onLeave});
   final RemoteHostController c;
@@ -16,20 +18,68 @@ class RemoteHostShell extends StatelessWidget {
         listenable: c,
         builder: (context, _) {
           if (c.stage == RemoteHostStage.code && c.connection != ControlConnection.connected) {
-            return PairingCodeView(
-              code: c.pairingCode,
-              serviceRunning: c.connection != ControlConnection.stopped,
-              error: c.message,
-              onNewCode: c.newCode,
-              onBack: onLeave,
-              waitingLabel: 'Kumanda bekleniyor…',
-              hint: 'Bunu diğer telefon veya PC\'deki AktifDesk\'e gir',
-              footer: 'Bu telefon uzaktan yönetilecek. Aynı Wi-Fi ağında olun.',
-            );
+            return _WaitingView(c: c, onLeave: onLeave);
           }
           return _ConnectedView(c: c, onLeave: onLeave);
         },
       );
+}
+
+class _WaitingView extends StatelessWidget {
+  const _WaitingView({required this.c, this.onLeave});
+  final RemoteHostController c;
+  final VoidCallback? onLeave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Uzaktan host'),
+        leading: onLeave == null
+            ? null
+            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onLeave),
+        actions: [
+          if (c.settings != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(
+                      settings: c.settings!,
+                      onChanged: c.onSettingsChanged,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          PairingCodeView(
+            code: c.pairingCode,
+            serviceRunning: c.connection != ControlConnection.stopped,
+            error: c.message,
+            onNewCode: c.newCode,
+            onBack: null,
+            waitingLabel: 'Kumanda bekleniyor…',
+            hint: 'Bunu diğer telefon veya PC\'deki AktifDesk\'e gir',
+            footer: 'Bu telefon uzaktan yönetilecek. Aynı Wi-Fi ağında olun. '
+                'Önce aşağıdaki Tam erişim izinlerini açın.',
+            embedded: true,
+          ),
+          const SizedBox(height: 8),
+          HostPermissionsChecklist(
+            status: c.permissions,
+            onOpen: c.openPermission,
+            onRefresh: c.refreshPermissions,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ConnectedView extends StatelessWidget {
@@ -80,23 +130,30 @@ class _ConnectedView extends StatelessWidget {
                 ),
               ),
             ),
-          const Card(
+          HostPermissionsChecklist(
+            status: c.permissions,
+            onOpen: c.openPermission,
+            onRefresh: c.refreshPermissions,
+            compact: true,
+          ),
+          Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Ne çalışıyor (MVP)', style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  Text('• Kodla eşleşme (IP yok)'),
-                  Text('• Bağlı durumu'),
-                  Text('• Uyanık tut / ekranı uyandır'),
-                  Text('• Güvenli uygulama veya http(s) URL aç'),
-                  Text('• Durum ping'),
-                  SizedBox(height: 8),
-                  Text(
-                    'Ekran aynalama (MediaProjection) henüz yok — iskelet hazır. '
-                    'Kök (root) olmadan tam dokunma enjeksiyonu ve güvenli kilit açma mümkün değil.',
+                  const Text('Ne çalışıyor', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('• Kodla eşleşme (IP yok)'),
+                  const Text('• Ön plan servisi + kalıcı bildirim (kararlı oturum)'),
+                  const Text('• Uyanık tut / ekranı uyandır'),
+                  Text('• Dokunma / kaydırma / Geri-Ana ekran '
+                      '(${c.accessibilityReady ? "Erişilebilirlik açık" : "Erişilebilirlik kapalı"})'),
+                  const Text('• Güvenli uygulama veya http(s) URL aç'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ekran aynalama (MediaProjection) henüz yok. '
+                    'Güvenli kilit (PIN) uzaktan açılamaz. Cihaz yöneticisi / silme yok.',
                     style: TextStyle(fontSize: 12),
                   ),
                 ],

@@ -49,11 +49,13 @@ class WelcomeView extends StatelessWidget {
     super.key,
     required this.onContinue,
     this.onPickRole,
+    this.onOpenSettings,
   });
 
   /// Legacy single-button path (PC manage). Prefer [onPickRole].
   final VoidCallback onContinue;
   final void Function(PhoneLaunchRole role)? onPickRole;
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -67,37 +69,53 @@ class WelcomeView extends StatelessWidget {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(''),
+        actions: [
+          if (onOpenSettings != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: onOpenSettings,
+            ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           child: Column(
             children: [
-              const Spacer(),
-              Icon(Icons.devices, size: 80, color: t.colorScheme.primary),
-              const SizedBox(height: 20),
-              Text(
-                'AktifDesk',
-                style: t.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
+              const Spacer(flex: 2),
+              Image.asset(
+                'assets/branding/aktifdesk-icon.jpg',
+                height: 96,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
               ),
-              const SizedBox(height: 8),
-              Text('Hoş geldin — ne yapmak istiyorsun?', style: t.textTheme.titleMedium),
+              const SizedBox(height: 16),
+              Text(
+                'Hoş geldin — ne yapmak istiyorsun?',
+                textAlign: TextAlign.center,
+                style: t.textTheme.titleMedium?.copyWith(
+                  color: t.colorScheme.onSurfaceVariant,
+                ),
+              ),
               const Spacer(),
               _RoleButton(
                 key: const Key('role-manage-pc'),
                 icon: Icons.desktop_windows_rounded,
                 title: "PC'yi yönet",
-                subtitle: 'Bu telefon Windows PC\'ye bağlanır (eski akış)',
+                subtitle: 'Bu telefon Windows PC\'ye bağlanır',
                 onTap: () => pick(PhoneLaunchRole.managePc),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _RoleButton(
                 key: const Key('role-remote-host'),
                 icon: Icons.phonelink_setup,
                 title: 'Bu telefonu uzaktan yönet',
-                subtitle: 'Kod göster; başka telefon/PC bu telefonu yönetsin',
+                subtitle: 'Kod göster; başka cihaz bu telefonu yönetsin',
                 onTap: () => pick(PhoneLaunchRole.remoteHost),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _RoleButton(
                 key: const Key('role-remote-client'),
                 icon: Icons.settings_remote,
@@ -105,8 +123,6 @@ class WelcomeView extends StatelessWidget {
                 subtitle: 'Başka telefondaki kodu girip onu yönet',
                 onTap: () => pick(PhoneLaunchRole.remoteClient),
               ),
-              // Keep a hidden "Devam et" for older widget tests that look for it
-              // when only onContinue is supplied without role picker usage.
               if (onPickRole == null)
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -183,6 +199,7 @@ class PairingCodeView extends StatelessWidget {
     this.waitingLabel = 'PC bekleniyor…',
     this.hint = 'Bunu PC\'deki cihazına gir',
     this.footer = 'Telefon ve PC aynı Wi-Fi ağında olmalı.',
+    this.embedded = false,
   });
 
   final String code;
@@ -194,9 +211,79 @@ class PairingCodeView extends StatelessWidget {
   final String hint;
   final String footer;
 
+  /// When true, return only the code card (no Scaffold) for nesting in ListViews.
+  final bool embedded;
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final body = Padding(
+      padding: EdgeInsets.all(embedded ? 8 : 32),
+      child: Column(
+        mainAxisSize: embedded ? MainAxisSize.min : MainAxisSize.max,
+        children: [
+          if (!embedded) const Spacer(),
+          Text('Eşleştirme kodun', style: t.textTheme.titleLarge),
+          const SizedBox(height: 16),
+          FittedBox(
+            child: Text(
+              PairingCode.format(code),
+              key: const Key('pairing-code'),
+              style: t.textTheme.displayLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 6,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            hint,
+            textAlign: TextAlign.center,
+            style: t.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 24),
+          if (serviceRunning)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Flexible(child: Text(waitingLabel, style: t.textTheme.bodyMedium)),
+              ],
+            )
+          else
+            Text('Bağlantı servisi çalışmıyor', style: TextStyle(color: t.colorScheme.error)),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: t.colorScheme.error),
+              ),
+            ),
+          if (!embedded) const Spacer(),
+          const SizedBox(height: 12),
+          Text(
+            footer,
+            textAlign: TextAlign.center,
+            style: t.textTheme.bodySmall,
+          ),
+          if (onNewCode != null)
+            TextButton.icon(
+              onPressed: onNewCode,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Yeni kod'),
+            ),
+        ],
+      ),
+    );
+    if (embedded) return body;
     return Scaffold(
       appBar: AppBar(
         title: const Text('AktifDesk'),
@@ -204,72 +291,7 @@ class PairingCodeView extends StatelessWidget {
             ? null
             : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              const Spacer(),
-              Text('Eşleştirme kodun', style: t.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              FittedBox(
-                child: Text(
-                  PairingCode.format(code),
-                  key: const Key('pairing-code'),
-                  style: t.textTheme.displayLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 6,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                hint,
-                textAlign: TextAlign.center,
-                style: t.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 32),
-              if (serviceRunning)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(waitingLabel, style: t.textTheme.bodyMedium),
-                  ],
-                )
-              else
-                Text('Bağlantı servisi çalışmıyor', style: TextStyle(color: t.colorScheme.error)),
-              if (error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: t.colorScheme.error),
-                  ),
-                ),
-              const Spacer(),
-              Text(
-                footer,
-                textAlign: TextAlign.center,
-                style: t.textTheme.bodySmall,
-              ),
-              if (onNewCode != null)
-                TextButton.icon(
-                  onPressed: onNewCode,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Yeni kod'),
-                ),
-            ],
-          ),
-        ),
-      ),
+      body: SafeArea(child: body),
     );
   }
 }

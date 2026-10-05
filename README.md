@@ -13,7 +13,7 @@ AktifDesk is a single Flutter codebase with two roles:
 | **Windows** (`AktifDesk.exe`) | **PC host.** Finds, starts and configures Sunshine, runs the AFK keep-awake engine, and connects to your phone after you type the phone's pairing code. Can also remote-control a phone that chose *Bu telefonu uzaktan yönet*. |
 | **Android** (`AktifDesk.apk`) | **Flexible.** Pick a role on launch: manage a Windows PC (existing), act as a **phone remote host** (show a code so another device controls this phone), or **connect by code** to remote-control another phone. |
 
-> **Status: v1.2.0 — phone-as-host remote MVP.** Sunshine/Moonlight PC path from v1.1.0 is unchanged. Phone↔phone (and PC→phone) remote control ships as a pairing + control-channel MVP — see [Limitations](#limitations--todos) for screen-share and input honesty.
+> **Status: v1.3.0 — accessibility input, Tam erişim checklist, Railway relay, hardened release.** Sunshine/Moonlight PC path unchanged. Phone remote host injects taps/swipes/keys via AccessibilityService; optional cross-network relay (baked `wss://` URL + integrity hash); R8 minify. See [Limitations](#limitations--todos).
 
 ---
 
@@ -25,11 +25,13 @@ AktifDesk is a single Flutter codebase with two roles:
   - The phone shows a **6-digit pairing code** (*Eşleştirme kodun*). You type it on the PC (*Eşleştirme kodunu gir* → *Eşleştir*); the PC finds the phone on the LAN by itself (UDP discovery, no mDNS dependency) and connects.
   - After the first pairing the PC remembers the phone (long-term random key) and reconnects automatically whenever both apps are open, even if the phone's IP changed.
   - Moonlight/GameStream pairing is automatic: the phone generates the **4-digit PIN** and forwards it to the PC, which submits it to Sunshine for you.
-- **Phone-as-host remote mode (new in v1.2.0).**
-  - On Android launch pick **Bu telefonu uzaktan yönet** — this phone advertises as a remote host with the same 6-digit code UX / UDP discovery / WebSocket control server (port 47100).
-  - Another AktifDesk client (phone via **Uzaktan bağlan**, or the Windows app) enters that code and connects — still no IP typing.
-  - Control MVP: keep-awake / wake screen, best-effort unlock request (secure PIN/pattern locks cannot be bypassed), launch http(s) URLs or installed packages, status ping. Host phone shows connected status.
-  - **Screen mirroring is scaffolded only** (MediaProjection + encoder / WebRTC media backend not bundled). Full tap/swipe injection without root is not claimed.
+- **Phone-as-host remote mode (v1.2 → v1.3).**
+  - On Android launch pick **Bu telefonu uzaktan yönet** — pairing code + LAN discovery (port 47100) as before.
+  - **AccessibilityService** injects taps / swipes / Back-Home-Recents (no root). Turkish **Tam erişim** checklist guides Accessibility, battery exemption, notifications, optional overlay.
+  - Foreground service + persistent notification + wake lock for a stabler host session; MediaProjection / encoder errors are isolated (mirror still not shipped).
+  - Client touchpad sends gestures over the control channel; host performs them when Accessibility is on.
+  - **Uzak bağlantı**: optional cross-network path via a baked-in Railway WebSocket relay URL (`wss://…`, integrity-hashed; not editable in Settings; no Railway token in the APK). LAN remains the fast path.
+  - **Screen mirroring is still scaffolded only.** Secure PIN/pattern unlock cannot be bypassed. No Device Admin wipe.
 - **Sunshine host management (Windows).** Locates `sunshine.exe` (custom path → Program Files → LocalAppData → `PATH`), detects the `SunshineService` service, starts/stops it, sets Web UI credentials, and applies settings through Sunshine's REST API (or edits `sunshine.conf` safely with a `.bak` backup when the API isn't up).
 - **Native Moonlight/GameStream client (pure Dart).** `serverinfo`, full PIN pairing handshake (AES-128, SHA-256, RSA-2048 signatures, MITM check), app list, launch / resume / quit. The server certificate is pinned after pairing.
 - **Full-screen, hardware-decoded streaming via Moonlight.** Once paired and launched, the video session is handed to the installed Moonlight app, which provides full-screen low-latency playback, **physical keyboard + mouse passthrough** (press `W` on a Bluetooth/USB keyboard and your character moves), gamepad support and its own on-screen controls.
@@ -95,6 +97,21 @@ Code map:
 | `lib/ui/` | Flutter UI |
 
 ---
+
+## Relay (Railway)
+
+Cross-network pairing uses a tiny WebSocket room bridge in [`relay/`](relay/).
+
+1. Deploy the `relay/` folder to [Railway](https://railway.app) (Dockerfile + `railway.toml` included). Root Directory = `relay`.
+2. Public domain should match the baked host `aktifdesk-relay-production.up.railway.app` **or** rebuild the app with:
+   ```bash
+   flutter build apk --release \
+     --dart-define=AKTIFDESK_RELAY_URL=wss://YOUR.up.railway.app/aktifdesk-relay \
+     --dart-define=AKTIFDESK_RELAY_HOST_SHA256=$(printf '%s' 'YOUR.up.railway.app' | sha256sum | cut -d' ' -f1)
+   ```
+3. In the app enable **Ayarlar → Uzak bağlantı**. The relay URL is **not** a user setting (tamper-checked compile-time constant). Pairing still uses the 6-digit code.
+
+**Auth:** pairing codes + short-lived session keys only. Never put `RAILWAY_TOKEN` or other deploy secrets in the APK.
 
 ## Download
 
@@ -192,6 +209,13 @@ gh release upload v1.2.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk
 `.github/workflows/build.yml` builds **Windows** (`windows-2022`) and **Android** (`ubuntu-latest`) on `push` to `main`, `workflow_dispatch`, and `v*` tags. On tags, a Release job attaches `AktifDesk-windows-x64.zip` and `AktifDesk-android.apk`. If Actions is unavailable, build Windows locally as above.
 
 ---
+
+## Security notes (v1.3)
+
+- Release APKs use **R8 minify + resource shrink + obfuscation**. This slows casual reverse engineering; it is **not** perfect protection.
+- Relay host is integrity-checked (SHA-256 of hostname). Runtime Settings / SharedPreferences / deeplinks cannot override it (fail closed).
+- Pairing keys use platform secure storage. Do not log codes/tokens.
+- Public relay speaks **wss://** only (except localhost `ws://` for dev).
 
 ## Limitations & TODOs
 

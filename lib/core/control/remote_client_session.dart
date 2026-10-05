@@ -152,6 +152,58 @@ class RemoteClientSession {
     return v is Map ? v.cast<String, Object?>() : r;
   }
 
+  Future<Map<String, Object?>> tap({
+    required double x,
+    required double y,
+    bool absolute = false,
+  }) async {
+    final r = await request(ControlProtocol.hostTap, {
+      'x': x,
+      'y': y,
+      'absolute': absolute,
+    });
+    final v = r['value'];
+    return v is Map ? v.cast<String, Object?>() : r;
+  }
+
+  Future<Map<String, Object?>> swipe({
+    required double x1,
+    required double y1,
+    required double x2,
+    required double y2,
+    int durationMs = 300,
+    bool absolute = false,
+  }) async {
+    final r = await request(ControlProtocol.hostSwipe, {
+      'x1': x1,
+      'y1': y1,
+      'x2': x2,
+      'y2': y2,
+      'durationMs': durationMs,
+      'absolute': absolute,
+    });
+    final v = r['value'];
+    return v is Map ? v.cast<String, Object?>() : r;
+  }
+
+  Future<Map<String, Object?>> key(String key) async {
+    final r = await request(ControlProtocol.hostKey, {'key': key});
+    final v = r['value'];
+    return v is Map ? v.cast<String, Object?>() : r;
+  }
+
+  Future<Map<String, Object?>> text(String text) async {
+    final r = await request(ControlProtocol.hostText, {'text': text});
+    final v = r['value'];
+    return v is Map ? v.cast<String, Object?>() : r;
+  }
+
+  Future<Map<String, Object?>> permissions() async {
+    final r = await request(ControlProtocol.hostPermissions);
+    final v = r['value'];
+    return v is Map ? v.cast<String, Object?>() : r;
+  }
+
   Future<void> close() async {
     _failPending('Kapatıldı');
     await _ws?.close(WebSocketStatus.goingAway);

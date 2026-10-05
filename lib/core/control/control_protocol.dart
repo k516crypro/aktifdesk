@@ -52,6 +52,11 @@ class ControlProtocol {
   static const hostUnlock = 'host.unlock';
   static const hostLaunch = 'host.launch';
   static const hostScreenShare = 'host.screenShare'; // scaffolded; MediaProjection TODO
+  static const hostTap = 'host.tap';
+  static const hostSwipe = 'host.swipe';
+  static const hostKey = 'host.key';
+  static const hostText = 'host.text';
+  static const hostPermissions = 'host.permissions';
 
   /// Discovery / hello mode: phone waits for a PC it will manage.
   static const modePcClient = 'pc-client';

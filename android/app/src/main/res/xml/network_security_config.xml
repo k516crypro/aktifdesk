@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Public relay must be wss:// (enforced in Dart RelayConfig).
+  Cleartext is allowed only because Sunshine/GameStream and LAN control WebSocket
+  on private Wi‑Fi use http/ws. This is not a license to talk cleartext to the
+  public relay host.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -13,7 +13,8 @@ void main() {
       onContinue: () {},
       onPickRole: (r) => picked = r,
     )));
-    expect(find.text('AktifDesk'), findsOneWidget);
+    expect(find.text('Hoş geldin — ne yapmak istiyorsun?'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.text("PC'yi yönet"), findsOneWidget);
     expect(find.text('Bu telefonu uzaktan yönet'), findsOneWidget);
     expect(find.text('Uzaktan bağlan'), findsOneWidget);
