@@ -7,12 +7,25 @@ import 'package:flutter_test/flutter_test.dart';
 Widget app(Widget w) => MaterialApp(home: w);
 
 void main() {
-  testWidgets('Android welcome: AktifDesk / Hoş geldin / Devam et', (t) async {
+  testWidgets('Android welcome: role picker (PC / remote host / bağlan)', (t) async {
+    PhoneLaunchRole? picked;
+    await t.pumpWidget(app(WelcomeView(
+      onContinue: () {},
+      onPickRole: (r) => picked = r,
+    )));
+    expect(find.text('AktifDesk'), findsOneWidget);
+    expect(find.text("PC'yi yönet"), findsOneWidget);
+    expect(find.text('Bu telefonu uzaktan yönet'), findsOneWidget);
+    expect(find.text('Uzaktan bağlan'), findsOneWidget);
+    await t.tap(find.text('Bu telefonu uzaktan yönet'));
+    expect(picked, PhoneLaunchRole.remoteHost);
+  });
+
+  testWidgets('Android welcome legacy Devam et when no onPickRole', (t) async {
     var continued = false;
     await t.pumpWidget(app(WelcomeView(onContinue: () => continued = true)));
-    expect(find.text('AktifDesk'), findsOneWidget);
-    expect(find.text('Hoş geldin'), findsOneWidget);
-    await t.tap(find.text('Devam et'));
+    expect(find.text('Hoş geldin — ne yapmak istiyorsun?'), findsOneWidget);
+    await t.tap(find.byKey(const Key('welcome-continue')));
     expect(continued, isTrue);
   });
 

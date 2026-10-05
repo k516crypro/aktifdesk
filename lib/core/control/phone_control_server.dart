@@ -7,6 +7,7 @@ import 'package:clock/clock.dart';
 import '../afk/afk_status.dart';
 import 'control_protocol.dart';
 import 'discovery.dart';
+import 'remote_commands.dart';
 
 /// Phone-side connection state.
 enum ControlConnection {
@@ -62,6 +63,8 @@ class PhoneControlServer {
     this.beaconTargets,
     this.maxFailedAttempts = 5,
     this.requestTimeout = const Duration(seconds: 45),
+    this.mode = ControlProtocol.modePcClient,
+    this.remoteHandler,
     String? initialCode,
   }) : _code = initialCode ?? PairingCode.generate() {
     for (final p in pairedPcs) {
@@ -78,6 +81,12 @@ class PhoneControlServer {
   final List<InternetAddress>? beaconTargets;
   final int maxFailedAttempts;
   final Duration requestTimeout;
+
+  /// Advertised role: pc-client (manage Windows) or remote-host (be controlled).
+  String mode;
+
+  /// When set (remote-host mode), incoming `host.*` requests are dispatched here.
+  RemoteCommandHandler? remoteHandler;
 
   final _paired = <String, PairedPc>{};
   String _code;
@@ -138,6 +147,7 @@ class PhoneControlServer {
       wsPort: s.port,
       code: _code,
       keyForPc: (id) => _paired[id]?.key,
+      mode: mode,
       port: discoveryPort,
       beaconPort: beaconPort,
       beaconTargets: beaconTargets,
@@ -223,6 +233,16 @@ class PhoneControlServer {
       if (!_pairings.isClosed) _pairings.add(PairingEvent(pc, peer));
     }
     _notify();
+    if (mode == ControlProtocol.modeRemoteHost) {
+      try {
+        ws.add(jsonEncode({
+          'type': ControlProtocol.hello,
+          'version': ControlProtocol.version,
+          'host': deviceName,
+          'mode': mode,
+        }));
+      } catch (_) {}
+    }
     ws.listen(
       _onData,
       onDone: () => _onClosed(ws),
@@ -239,7 +259,8 @@ class PhoneControlServer {
     } catch (_) {
       return;
     }
-    switch (m['type']) {
+    final type = m['type'];
+    switch (type) {
       case ControlProtocol.hello:
         hostName = (m['host'] as String?) ?? hostName;
       case ControlProtocol.afkStatus:
@@ -253,8 +274,44 @@ class PhoneControlServer {
               ? c.complete(m)
               : c.completeError(ControlException('${m['error'] ?? 'Hata'}'));
         }
+      default:
+        // Controller → phone-host request (has an id, expects a result).
+        if (m['id'] != null && type is String && type.startsWith('host.')) {
+          unawaited(_handleRemoteRequest(m));
+          return;
+        }
     }
     _notify();
+  }
+
+  Future<void> _handleRemoteRequest(Map<String, Object?> m) async {
+    final ws = _ws;
+    final id = m['id'];
+    if (ws == null) return;
+    void reply(bool ok, [Object? error, Object? value]) {
+      try {
+        ws.add(jsonEncode({
+          'type': ControlProtocol.result,
+          'id': id,
+          'ok': ok,
+          if (error != null) 'error': '$error',
+          'value': ?value,
+        }));
+      } catch (_) {}
+    }
+
+    final handler = remoteHandler;
+    if (handler == null || mode != ControlProtocol.modeRemoteHost) {
+      reply(false, 'Bu telefon uzaktan kumanda modunda değil');
+      return;
+    }
+    try {
+      final value = await handler.handle('${m['type']}', m);
+      reply(true, null, value);
+      _notify();
+    } catch (e) {
+      reply(false, e);
+    }
   }
 
   void _failPending(String why) {

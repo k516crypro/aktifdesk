@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/host_controller.dart';
 import '../../core/control/pc_link.dart';
+import '../../core/control/remote_client_session.dart';
 import '../../core/sunshine/sunshine_config.dart';
 import '../../core/sunshine/sunshine_host.dart';
 import '../widgets/afk_status_card.dart';
@@ -87,6 +88,7 @@ class _HostScreenState extends State<HostScreen> {
               onMethodChanged: c.setAfkMethod,
             ),
             _phoneCard(context),
+            if (c.remoteSessions.isNotEmpty) _remotePhoneCard(context),
           ];
           final right = [_sunshineCard(context), _pairingCard(context)];
           return SingleChildScrollView(
@@ -122,16 +124,25 @@ class _HostScreenState extends State<HostScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.phone_android,
-                    color: c.links[p.id]?.state == PhoneLinkState.connected ? Colors.green : Colors.grey),
+                    color: (c.remoteSessions[p.id]?.connected == true ||
+                            c.links[p.id]?.state == PhoneLinkState.connected)
+                        ? Colors.green
+                        : Colors.grey),
                 title: Text(p.name),
-                subtitle: Text(switch (c.links[p.id]?.state) {
-                  PhoneLinkState.connected => 'Bağlı',
-                  PhoneLinkState.connecting => 'Bağlanıyor…',
-                  PhoneLinkState.rejected =>
-                    c.links[p.id]?.lastError ?? 'Telefon reddetti — yeniden eşleştirin',
-                  PhoneLinkState.stopped => 'Durdu',
-                  _ => 'Aranıyor… (telefonda AktifDesk açık olmalı)',
-                }),
+                subtitle: Text(
+                  c.remoteSessions.containsKey(p.id)
+                      ? (c.remoteSessions[p.id]!.connected
+                          ? 'Uzaktan telefon — bağlı'
+                          : 'Uzaktan telefon — koptu')
+                      : switch (c.links[p.id]?.state) {
+                          PhoneLinkState.connected => 'Bağlı',
+                          PhoneLinkState.connecting => 'Bağlanıyor…',
+                          PhoneLinkState.rejected =>
+                            c.links[p.id]?.lastError ?? 'Telefon reddetti — yeniden eşleştirin',
+                          PhoneLinkState.stopped => 'Durdu',
+                          _ => 'Aranıyor… (telefonda AktifDesk açık olmalı)',
+                        },
+                ),
                 trailing: IconButton(
                     tooltip: 'Eşleştirmeyi kaldır',
                     onPressed: () => c.unpairPhone(p.id),
@@ -302,4 +313,68 @@ class _HostScreenState extends State<HostScreen> {
           ]),
         ),
       );
+
+  Widget _remotePhoneCard(BuildContext context) {
+    String nameOf(String id) {
+      for (final p in c.pairedPhones) {
+        if (p.id == id) return p.name;
+      }
+      return id;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Uzaktan telefon kumandası', style: Theme.of(context).textTheme.titleMedium),
+          const Text(
+            'Bu telefon "Bu telefonu uzaktan yönet" modunda. Ekran aynalama yok (MVP); '
+            'uyanık tut, uyandır ve durum ping çalışır.',
+            style: TextStyle(fontSize: 12),
+          ),
+          for (final e in c.remoteSessions.entries)
+            _RemotePhoneTile(name: nameOf(e.key), session: e.value),
+        ]),
+      ),
+    );
+  }
+}
+
+class _RemotePhoneTile extends StatelessWidget {
+  const _RemotePhoneTile({required this.name, required this.session});
+  final String name;
+  final RemoteClientSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = session.lastStatus;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.phonelink, color: session.connected ? Colors.green : Colors.grey),
+          title: Text(name),
+          subtitle: Text(
+            session.connected
+                ? 'Uyanık: ${st?.keepAwake == true ? "evet" : "hayır"} • ${st?.message ?? ""}'
+                : 'Bağlı değil',
+          ),
+        ),
+        Wrap(spacing: 8, children: [
+          OutlinedButton(
+              onPressed: session.connected ? () => session.ping() : null,
+              child: const Text('Ping')),
+          OutlinedButton(
+              onPressed: session.connected
+                  ? () => session.setKeepAwake(!(st?.keepAwake ?? false))
+                  : null,
+              child: const Text('Uyanık tut')),
+          OutlinedButton(
+              onPressed: session.connected ? () => session.requestUnlock() : null,
+              child: const Text('Uyandır')),
+        ]),
+      ],
+    );
+  }
 }

@@ -111,6 +111,7 @@ class PhoneAdvertiser {
     required this.wsPort,
     this.code,
     this.keyForPc,
+    this.mode = ControlProtocol.modePcClient,
     this.port = ControlProtocol.discoveryPort,
     this.beaconPort = ControlProtocol.discoveryPort,
     this.beaconInterval = const Duration(seconds: 2),
@@ -120,6 +121,9 @@ class PhoneAdvertiser {
   final String deviceId;
   String deviceName;
   int wsPort;
+
+  /// [ControlProtocol.modePcClient] or [ControlProtocol.modeRemoteHost].
+  String mode;
 
   /// Current pairing code (null = not accepting new PCs).
   String? code;
@@ -187,6 +191,7 @@ class PhoneAdvertiser {
           'id': deviceId,
           'name': deviceName,
           'port': wsPort,
+          'mode': mode,
           'h': hmacHex(secret, 'r|$n|$deviceId|$wsPort'),
         }),
         d.address,
@@ -212,6 +217,7 @@ class PhoneAdvertiser {
       'id': deviceId,
       'name': deviceName,
       'port': wsPort,
+      'mode': mode,
       's': salt,
       if (c != null) 'ch': hmacHex(c, 'b|$salt'),
     });
@@ -236,11 +242,17 @@ class DiscoveredPhone {
     required this.port,
     required this.id,
     required this.name,
+    this.mode = ControlProtocol.modePcClient,
   });
   final InternetAddress address;
   final int port;
   final String id;
   final String name;
+
+  /// [ControlProtocol.modePcClient] or [ControlProtocol.modeRemoteHost].
+  final String mode;
+
+  bool get isRemoteHost => mode == ControlProtocol.modeRemoteHost;
 
   @override
   String toString() => '$name (${address.address}:$port)';
@@ -297,6 +309,7 @@ class PcDiscovery {
       final port = (m['port'] as num?)?.toInt();
       if (id is! String || port == null || port <= 0 || port > 65535) return;
       final name = m['name'] is String ? m['name'] as String : 'Telefon';
+      final mode = m['mode'] is String ? m['mode'] as String : ControlProtocol.modePcClient;
       var ok = false;
       if (m[_magic] == 'r' && nonces.contains(m['n'])) {
         final secret = code ?? key;
@@ -317,7 +330,9 @@ class PcDiscovery {
         }
       }
       if (ok) {
-        done.complete(DiscoveredPhone(address: d.address, port: port, id: id, name: name));
+        done.complete(
+          DiscoveredPhone(address: d.address, port: port, id: id, name: name, mode: mode),
+        );
       }
     }
 

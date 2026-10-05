@@ -35,10 +35,20 @@ class PairingFailure implements Exception {
 enum PairStage { idle, searching, connecting, success, failed }
 
 class PairResult {
-  const PairResult({required this.phone, required this.socket, required this.address});
+  const PairResult({
+    required this.phone,
+    required this.socket,
+    required this.address,
+    this.mode = ControlProtocol.modePcClient,
+  });
   final PairedPhone phone;
   final WebSocket socket;
   final String address;
+
+  /// Mode the phone advertised while pairing.
+  final String mode;
+
+  bool get isRemoteHost => mode == ControlProtocol.modeRemoteHost;
 }
 
 Future<WebSocket> connectToPhone(
@@ -93,6 +103,7 @@ Future<PairResult> pairWithCode({
       phone: PairedPhone(id: found.id, name: found.name, key: key),
       socket: ws,
       address: found.address.address,
+      mode: found.mode,
     );
   } on WebSocketException catch (e) {
     if ('$e'.contains('401')) {

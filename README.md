@@ -10,21 +10,26 @@ AktifDesk is a single Flutter codebase with two roles:
 
 | Platform | Role |
 |---|---|
-| **Windows** (`AktifDesk.exe`) | **Host.** Finds, starts and configures Sunshine, runs the AFK keep-awake engine, and connects to your phone after you type the phone's pairing code. |
-| **Android** (`AktifDesk.apk`) | **Client.** Shows a 6-digit pairing code and waits for the PC on the LAN, pairs with Sunshine using the Moonlight/GameStream protocol, launches games, and monitors/controls AFK mode live. |
+| **Windows** (`AktifDesk.exe`) | **PC host.** Finds, starts and configures Sunshine, runs the AFK keep-awake engine, and connects to your phone after you type the phone's pairing code. Can also remote-control a phone that chose *Bu telefonu uzaktan yönet*. |
+| **Android** (`AktifDesk.apk`) | **Flexible.** Pick a role on launch: manage a Windows PC (existing), act as a **phone remote host** (show a code so another device controls this phone), or **connect by code** to remote-control another phone. |
 
-> **Status: v1.1.0 — early public release.** The core (Sunshine management, GameStream pairing, control channel, AFK engine) is implemented and unit-tested. Some features below are on the roadmap and are clearly marked. Please read [Limitations](#limitations--todos) before relying on it.
+> **Status: v1.2.0 — phone-as-host remote MVP.** Sunshine/Moonlight PC path from v1.1.0 is unchanged. Phone↔phone (and PC→phone) remote control ships as a pairing + control-channel MVP — see [Limitations](#limitations--todos) for screen-share and input honesty.
 
 ---
 
 ## Features
 
-### Available in v1.1.0
+### Available in v1.2.0
 
 - **Code-only pairing — no IP addresses anywhere.**
   - The phone shows a **6-digit pairing code** (*Eşleştirme kodun*). You type it on the PC (*Eşleştirme kodunu gir* → *Eşleştir*); the PC finds the phone on the LAN by itself (UDP discovery, no mDNS dependency) and connects.
   - After the first pairing the PC remembers the phone (long-term random key) and reconnects automatically whenever both apps are open, even if the phone's IP changed.
   - Moonlight/GameStream pairing is automatic: the phone generates the **4-digit PIN** and forwards it to the PC, which submits it to Sunshine for you.
+- **Phone-as-host remote mode (new in v1.2.0).**
+  - On Android launch pick **Bu telefonu uzaktan yönet** — this phone advertises as a remote host with the same 6-digit code UX / UDP discovery / WebSocket control server (port 47100).
+  - Another AktifDesk client (phone via **Uzaktan bağlan**, or the Windows app) enters that code and connects — still no IP typing.
+  - Control MVP: keep-awake / wake screen, best-effort unlock request (secure PIN/pattern locks cannot be bypassed), launch http(s) URLs or installed packages, status ping. Host phone shows connected status.
+  - **Screen mirroring is scaffolded only** (MediaProjection + encoder / WebRTC media backend not bundled). Full tap/swipe injection without root is not claimed.
 - **Sunshine host management (Windows).** Locates `sunshine.exe` (custom path → Program Files → LocalAppData → `PATH`), detects the `SunshineService` service, starts/stops it, sets Web UI credentials, and applies settings through Sunshine's REST API (or edits `sunshine.conf` safely with a `.bak` backup when the API isn't up).
 - **Native Moonlight/GameStream client (pure Dart).** `serverinfo`, full PIN pairing handshake (AES-128, SHA-256, RSA-2048 signatures, MITM check), app list, launch / resume / quit. The server certificate is pinned after pairing.
 - **Full-screen, hardware-decoded streaming via Moonlight.** Once paired and launched, the video session is handed to the installed Moonlight app, which provides full-screen low-latency playback, **physical keyboard + mouse passthrough** (press `W` on a Bluetooth/USB keyboard and your character moves), gamepad support and its own on-screen controls.
@@ -35,7 +40,7 @@ AktifDesk is a single Flutter codebase with two roles:
   - Live status (last ping, next ping, error count) on **both** the PC and the phone; optionally keeps the phone screen on while AFK is active.
 - **Live LAN control channel** with automatic reconnect and status push.
 
-### Roadmap (planned, not yet in v1.1.0)
+### Roadmap (planned, not yet complete)
 
 These are the target experience for AktifDesk's own in-app player. Until it ships, the equivalent functions are provided by the Moonlight app that AktifDesk hands the stream to.
 
@@ -43,6 +48,7 @@ These are the target experience for AktifDesk's own in-app player. Until it ship
 - **FPS selector from 44 to 130 FPS** in the AktifDesk UI (the protocol already sends a configurable `WxHxFPS` mode; default 1080p60).
 - **Custom, editable virtual controls** — drag-and-resize layouts for WASD, a full on-screen keyboard, and mouse buttons/trackpad.
 - **WebRTC fallback engine** — the engine abstraction and selector exist, but the media backend is a stub and is not bundled.
+- **Phone remote screen share** — MediaProjection consent + VirtualDisplay + encoder (likely WebRTC) to mirror a host phone to a client; input forwarding without root where Android allows.
 
 ---
 
@@ -83,7 +89,7 @@ Code map:
 | `lib/core/afk/` | AFK scheduler + Windows `dart:ffi` backend |
 | `lib/core/sunshine/` | Sunshine discovery, REST API, config file editing |
 | `lib/core/gamestream/` | Pure-Dart GameStream client, pairing crypto, DER/X.509 |
-| `lib/core/control/` | UDP discovery, pairing codes, control protocol (phone-hosted WebSocket, PC agent/links) |
+| `lib/core/control/` | UDP discovery, pairing codes, control protocol (phone-hosted WebSocket, PC agent/links, phone-remote host/client) |
 | `lib/core/streaming/` | Streaming engine abstraction (Sunshine/Moonlight primary, WebRTC fallback) |
 | `lib/app/` | Host / client controllers, secret storage |
 | `lib/ui/` | Flutter UI |
@@ -106,12 +112,19 @@ Grab the latest build from **[GitHub Releases](https://github.com/k516crypro/akt
 
 1. **Install Sunshine on your PC** — <https://github.com/LizardByte/Sunshine/releases> (installer or portable).
 2. **Install Moonlight on your phone** ([Google Play](https://play.google.com/store/apps/details?id=com.limelight)) — used for video decoding.
-3. **Pair the phone and the PC** (both on the same Wi-Fi/LAN — no addresses to type):
-   1. **Android:** open AktifDesk → *AktifDesk / Hoş geldin* → tap **Devam et** (Continue). The phone shows a big 6-digit code under *Eşleştirme kodun* (“your pairing code”) with *Bunu PC'deki cihazına gir* (“enter this on your PC”) and waits.
-   2. **Windows:** run `AktifDesk.exe`. On the *Aktif Desk* screen, type the code into **Eşleştirme kodunu gir** (“enter the pairing code”) and click **Eşleştir** (Pair). The PC finds the phone on the network and connects.
-   3. **Android** confirms with *Şu an izinleri aldık — Telefondan PC'yi yönetebilirsin* (“We have the permissions — you can manage the PC from your phone”). Tap **Devam et** to open the AFK and streaming controls.
-   
-   From then on the PC reconnects to the phone automatically whenever both apps are open. To add another PC, use *Yeni PC eşleştir* in the phone's menu; to add another phone, use *Yeni telefon eşleştir* on the PC.
+3. **Pick a role on Android** (both devices on the same Wi-Fi/LAN — no addresses to type):
+
+   **A) Manage a Windows PC** (*PC'yi yönet* — same as v1.1.0):
+   1. **Android:** open AktifDesk → choose **PC'yi yönet**. The phone shows a big 6-digit code under *Eşleştirme kodun*.
+   2. **Windows:** run `AktifDesk.exe`, type the code into **Eşleştirme kodunu gir**, click **Eşleştir**. The PC finds the phone and connects.
+   3. **Android** confirms (*Şu an izinleri aldık…*). Tap **Devam et** for AFK + streaming controls.
+
+   **B) Remote-control this phone** (*Bu telefonu uzaktan yönet*):
+   1. On the phone you want to control, choose **Bu telefonu uzaktan yönet** — it shows a pairing code and waits.
+   2. On another phone choose **Uzaktan bağlan** (or on Windows use the same code field) and enter that code.
+   3. Use keep-awake / wake / launch / ping. Screen share is not available yet.
+
+   From then on remembered peers reconnect when both apps are open. To add another PC, use *Yeni PC eşleştir* in the phone's menu; to add another phone, use *Yeni telefon eşleştir* on the PC.
 4. On the phone tap **Prepare Sunshine on PC** (*PC'de Sunshine'ı hazırla*), then **Pair (automatic PIN)** (*Eşleştir (otomatik PIN)*). Pick a game or *Desktop* (*Masaüstü*) to start streaming.
 5. **Firewall** (private network): the PC only makes *outgoing* connections to the phone, so the AktifDesk control channel needs no inbound rule on the PC. If Windows asks, allow AktifDesk on **private networks** so it can also hear the phone's discovery beacons (UDP 47101).
    - Sunshine (default base port 47989): **TCP 47984, 47989, 47990, 48010** and **UDP 47998–48000, 48002, 48010**
@@ -132,7 +145,7 @@ cd aktifdesk
 flutter pub get
 
 flutter analyze
-flutter test                     # 55 tests: AFK scheduler, GameStream pairing, Sunshine, discovery + control channel, UI
+flutter test                     # AFK scheduler, GameStream pairing, Sunshine, discovery + control channel, phone-remote, UI
 
 flutter build apk --release      # Android  -> build/app/outputs/flutter-apk/app-release.apk
 flutter build apk --release --split-per-abi   # per-ABI APKs (app-arm64-v8a-release.apk, …)
@@ -169,7 +182,7 @@ Compress-Archive -Path .\build\windows\x64\runner\Release\* `
 4. Attach the zip to the release (replace the tag if you publish a newer one):
 
 ```powershell
-gh release upload v1.1.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk --clobber
+gh release upload v1.2.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk --clobber
 ```
 
 `scripts/build-windows.cmd` is a double-click wrapper around the PowerShell script.
@@ -182,7 +195,7 @@ gh release upload v1.1.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk
 
 ## Limitations & TODOs
 
-Being honest about where v1.1.0 stands:
+Being honest about where v1.2.0 stands:
 
 - **Windows-only code paths have not been tested on real hardware yet.** The `SetThreadExecutionState` / `SendInput` FFI calls and Sunshine service control (`sc`, `tasklist`, `taskkill`) are covered by unit tests with fakes. Grab `AktifDesk-windows-x64.zip` from [Releases](https://github.com/k516crypro/aktifdesk/releases/latest), or build it locally — see [Building the Windows exe](#building-the-windows-exe).
 - **Anti-cheat may block virtual input.** Some games/anti-cheat systems ignore or flag `SendInput` events and virtual devices. Use at your own risk and respect each game's terms of service.
@@ -192,7 +205,8 @@ Being honest about where v1.1.0 stands:
 - **Secrets on Windows** (phone pairing keys, Sunshine Web UI password) are stored in the user profile via SharedPreferences, not encrypted. Moving them to DPAPI is a TODO. On Android they use the Keystore-backed secure storage.
 - **The control channel is plain `ws://` on the LAN.** The first connection is authenticated by the 6-digit one-time code, later ones by a 256-bit random key, but traffic is not encrypted and a 6-digit code is brute-forceable by an attacker who can sniff the LAN during pairing. Pair on a trusted network and don't expose ports 47100/47101 to the internet. TLS / a PAKE-based pairing is a TODO.
 - **Discovery uses UDP broadcast + a /24 sweep**, not mDNS; networks that isolate clients (guest Wi-Fi, AP isolation) prevent pairing.
-- **The phone must have AktifDesk open** for the PC to connect; there is no Android background service yet.
+- **The phone must have AktifDesk open** for the PC (or another phone) to connect; there is no Android background service yet.
+- **Phone remote is not full TeamViewer-style control.** No MediaProjection screen mirror yet (stub only). Keep-awake needs AktifDesk in the foreground. Secure lock screens (PIN/pattern/password/biometrics) cannot be unlocked remotely without Device Owner / Accessibility abuse — we only wake the screen and dismiss an *insecure* keyguard when the OS allows it. Tap/swipe injection without root is not implemented.
 - **Release APK is debug-signed**; a proper release keystore is a TODO.
 - The UI is currently in Turkish; English localisation is a TODO.
 

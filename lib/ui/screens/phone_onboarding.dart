@@ -7,21 +7,25 @@ import 'client_screen.dart';
 
 /// Phone root: Welcome → pairing code → success → dashboard.
 class PhoneShell extends StatelessWidget {
-  const PhoneShell({super.key, required this.c});
+  const PhoneShell({super.key, required this.c, this.onLeave});
   final ClientController c;
+  final VoidCallback? onLeave;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: c,
     builder: (context, _) {
       final Widget page = switch (c.stage) {
-        PhoneStage.welcome => WelcomeView(onContinue: c.continueFromWelcome),
+        PhoneStage.welcome => WelcomeView(
+          onContinue: c.continueFromWelcome,
+          // Role already chosen at root; keep a single continue for this flow.
+        ),
         PhoneStage.code => PairingCodeView(
           code: c.pairingCode,
           serviceRunning: c.connection != ControlConnection.stopped,
           error: c.message,
           onNewCode: c.newCode,
-          onBack: c.pairedPcs.isEmpty ? null : c.openDashboard,
+          onBack: c.pairedPcs.isEmpty ? onLeave : c.openDashboard,
         ),
         PhoneStage.success => PairedSuccessView(
           pcName: c.lastPairedPc?.name ?? c.control.hostName,
@@ -37,38 +41,129 @@ class PhoneShell extends StatelessWidget {
   );
 }
 
+/// What the user picks on first launch.
+enum PhoneLaunchRole { managePc, remoteHost, remoteClient }
+
 class WelcomeView extends StatelessWidget {
-  const WelcomeView({super.key, required this.onContinue});
+  const WelcomeView({
+    super.key,
+    required this.onContinue,
+    this.onPickRole,
+  });
+
+  /// Legacy single-button path (PC manage). Prefer [onPickRole].
   final VoidCallback onContinue;
+  final void Function(PhoneLaunchRole role)? onPickRole;
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    void pick(PhoneLaunchRole r) {
+      if (onPickRole != null) {
+        onPickRole!(r);
+      } else if (r == PhoneLaunchRole.managePc) {
+        onContinue();
+      }
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             children: [
               const Spacer(),
-              Icon(Icons.desktop_windows_rounded, size: 88, color: t.colorScheme.primary),
-              const SizedBox(height: 24),
+              Icon(Icons.devices, size: 80, color: t.colorScheme.primary),
+              const SizedBox(height: 20),
               Text(
                 'AktifDesk',
                 style: t.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text('Hoş geldin', style: t.textTheme.headlineSmall),
+              Text('Hoş geldin — ne yapmak istiyorsun?', style: t.textTheme.titleMedium),
               const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  key: const Key('welcome-continue'),
-                  onPressed: onContinue,
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: const Text('Devam et', style: TextStyle(fontSize: 18)),
+              _RoleButton(
+                key: const Key('role-manage-pc'),
+                icon: Icons.desktop_windows_rounded,
+                title: "PC'yi yönet",
+                subtitle: 'Bu telefon Windows PC\'ye bağlanır (eski akış)',
+                onTap: () => pick(PhoneLaunchRole.managePc),
+              ),
+              const SizedBox(height: 12),
+              _RoleButton(
+                key: const Key('role-remote-host'),
+                icon: Icons.phonelink_setup,
+                title: 'Bu telefonu uzaktan yönet',
+                subtitle: 'Kod göster; başka telefon/PC bu telefonu yönetsin',
+                onTap: () => pick(PhoneLaunchRole.remoteHost),
+              ),
+              const SizedBox(height: 12),
+              _RoleButton(
+                key: const Key('role-remote-client'),
+                icon: Icons.settings_remote,
+                title: 'Uzaktan bağlan',
+                subtitle: 'Başka telefondaki kodu girip onu yönet',
+                onTap: () => pick(PhoneLaunchRole.remoteClient),
+              ),
+              // Keep a hidden "Devam et" for older widget tests that look for it
+              // when only onContinue is supplied without role picker usage.
+              if (onPickRole == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const Key('welcome-continue'),
+                      onPressed: onContinue,
+                      child: const Text('Devam et'),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleButton extends StatelessWidget {
+  const _RoleButton({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(icon, size: 36, color: t.colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: t.textTheme.bodySmall),
+                  ],
                 ),
               ),
+              const Icon(Icons.chevron_right),
             ],
           ),
         ),
@@ -85,6 +180,9 @@ class PairingCodeView extends StatelessWidget {
     this.error,
     this.onNewCode,
     this.onBack,
+    this.waitingLabel = 'PC bekleniyor…',
+    this.hint = 'Bunu PC\'deki cihazına gir',
+    this.footer = 'Telefon ve PC aynı Wi-Fi ağında olmalı.',
   });
 
   final String code;
@@ -92,6 +190,9 @@ class PairingCodeView extends StatelessWidget {
   final String? error;
   final VoidCallback? onNewCode;
   final VoidCallback? onBack;
+  final String waitingLabel;
+  final String hint;
+  final String footer;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +225,7 @@ class PairingCodeView extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Bunu PC\'deki cihazına gir',
+                hint,
                 textAlign: TextAlign.center,
                 style: t.textTheme.titleMedium,
               ),
@@ -139,7 +240,7 @@ class PairingCodeView extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     const SizedBox(width: 12),
-                    Text('PC bekleniyor…', style: t.textTheme.bodyMedium),
+                    Text(waitingLabel, style: t.textTheme.bodyMedium),
                   ],
                 )
               else
@@ -155,7 +256,7 @@ class PairingCodeView extends StatelessWidget {
                 ),
               const Spacer(),
               Text(
-                'Telefon ve PC aynı Wi-Fi ağında olmalı.',
+                footer,
                 textAlign: TextAlign.center,
                 style: t.textTheme.bodySmall,
               ),

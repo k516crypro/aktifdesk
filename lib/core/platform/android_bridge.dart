@@ -53,4 +53,37 @@ class AndroidBridge {
     if (!supported) return false;
     return await _ch.invokeMethod<bool>('multicastLock', {'on': true}) ?? false;
   }
+
+  /// Best-effort wake + unlock. Secure locks cannot be dismissed without
+  /// elevated privileges; see returned map.
+  ///
+  /// Keys: `ok` (bool), `secure` (bool?), `message` (String?).
+  static Future<Map<String, Object?>> requestUnlock() async {
+    if (!supported) {
+      return {'ok': false, 'message': 'Android değil'};
+    }
+    final r = await _ch.invokeMethod<Map>('requestUnlock');
+    return (r ?? const {}).map((k, v) => MapEntry('$k', v));
+  }
+
+  /// Launch an installed package or open an http(s) URL.
+  static Future<bool> launchApp({String? packageName, String? url}) async {
+    if (!supported) return false;
+    return await _ch.invokeMethod<bool>('launchApp', {
+          'package': packageName,
+          'url': url,
+        }) ??
+        false;
+  }
+
+  /// Scaffold for future MediaProjection screen capture. Always returns false
+  /// until a media backend is bundled.
+  static Future<Map<String, Object?>> requestScreenCapture() async {
+    if (!supported) {
+      return {'ok': false, 'reason': 'not_android'};
+    }
+    final r = await _ch.invokeMethod<Map>('requestScreenCapture');
+    return (r ?? const {'ok': false, 'reason': 'not_implemented'})
+        .map((k, v) => MapEntry('$k', v));
+  }
 }

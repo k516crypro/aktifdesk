@@ -38,12 +38,26 @@ class ControlProtocol {
   static const sunshineStatus = 'sunshine.status';
   static const result = 'result';
 
-  // phone -> PC
+  // phone -> PC (when phone manages a Windows host)
   static const afkSet = 'afk.set';
   static const afkPing = 'afk.ping';
   static const sunshinePin = 'sunshine.pin';
   static const sunshinePrepare = 'sunshine.prepare';
   static const statusGet = 'status.get';
+
+  // controller -> phone-host (when this phone is being remoted)
+  static const hostPing = 'host.ping';
+  static const hostStatus = 'host.status';
+  static const hostKeepAwake = 'host.keepAwake';
+  static const hostUnlock = 'host.unlock';
+  static const hostLaunch = 'host.launch';
+  static const hostScreenShare = 'host.screenShare'; // scaffolded; MediaProjection TODO
+
+  /// Discovery / hello mode: phone waits for a PC it will manage.
+  static const modePcClient = 'pc-client';
+
+  /// Discovery / hello mode: phone is the remote host being controlled.
+  static const modeRemoteHost = 'remote-host';
 }
 
 /// 6-digit numeric pairing codes shown on the phone and typed on the PC.

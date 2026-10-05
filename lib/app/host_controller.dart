@@ -13,6 +13,7 @@ import '../core/control/control_protocol.dart';
 import '../core/control/discovery.dart';
 import '../core/control/pc_control_agent.dart';
 import '../core/control/pc_link.dart';
+import '../core/control/remote_client_session.dart';
 import '../core/streaming/streaming_engine.dart';
 import '../core/streaming/sunshine_host_engine.dart';
 import '../core/streaming/webrtc_fallback_engine.dart';
@@ -48,6 +49,8 @@ class HostController extends ChangeNotifier implements HostSunshineHooks {
   String? lastMessage;
   bool busy = false;
   int phoneCount = 0;
+  /// Controllers for phones advertised as remote-host (PC remotes the phone).
+  final remoteSessions = <String, RemoteClientSession>{};
 
   final _sunChanges = StreamController<Map<String, Object?>>.broadcast();
   Timer? _poll;
@@ -135,11 +138,23 @@ class HostController extends ChangeNotifier implements HostSunshineHooks {
       );
       final old = links.remove(r.phone.id);
       await old?.stop();
+      await remoteSessions.remove(r.phone.id)?.close();
       pairedPhones = [...pairedPhones.where((p) => p.id != r.phone.id), r.phone];
       await _savePhones();
-      _startLink(r.phone, adopt: r.socket, address: r.address);
+      if (r.isRemoteHost) {
+        final session = RemoteClientSession();
+        remoteSessions[r.phone.id] = session;
+        session.changes.listen((_) => notifyListeners());
+        unawaited(session.attach(r.socket, peer: r.address).then((_) {
+          remoteSessions.remove(r.phone.id);
+          notifyListeners();
+        }));
+        pairMessage = 'Uzaktan telefon eşleşti: ${r.phone.name}';
+      } else {
+        _startLink(r.phone, adopt: r.socket, address: r.address);
+        pairMessage = 'Eşleşti: ${r.phone.name}';
+      }
       pairStage = PairStage.success;
-      pairMessage = 'Eşleşti: ${r.phone.name}';
       showDashboard = true;
       notifyListeners();
       return true;
@@ -153,6 +168,7 @@ class HostController extends ChangeNotifier implements HostSunshineHooks {
 
   Future<void> unpairPhone(String id) async {
     await links.remove(id)?.stop();
+    await remoteSessions.remove(id)?.close();
     pairedPhones = pairedPhones.where((p) => p.id != id).toList();
     await _savePhones();
     notifyListeners();
@@ -283,6 +299,10 @@ class HostController extends ChangeNotifier implements HostSunshineHooks {
     for (final l in links.values) {
       await l.stop();
     }
+    for (final s in remoteSessions.values) {
+      await s.close();
+    }
+    remoteSessions.clear();
     await agent.stop();
     await _afkSub?.cancel();
     await _sunChanges.close();

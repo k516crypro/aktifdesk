@@ -4,6 +4,7 @@
     <!-- LAN discovery: receive the PC's UDP discovery broadcasts. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="AktifDesk"
         android:usesCleartextTraffic="true"

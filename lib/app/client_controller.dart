@@ -32,10 +32,13 @@ enum PhoneStage {
 /// Phone-side app state. The phone hosts the control channel and shows a
 /// pairing code; the PC finds it on the LAN and connects. No IP entry.
 class ClientController extends ChangeNotifier {
-  ClientController({this.startServer = true});
+  ClientController({this.startServer = true, this.skipWelcome = false});
 
   /// Tests can skip binding real sockets.
   final bool startServer;
+
+  /// When the Android root already showed the role picker.
+  final bool skipWelcome;
 
   final _secrets = PlatformSecretStore();
   late final SharedPreferences _prefs;
@@ -86,7 +89,9 @@ class ClientController extends ChangeNotifier {
         }
       }
     } catch (_) {}
-    stage = pcs.isEmpty ? PhoneStage.welcome : PhoneStage.dashboard;
+    stage = pcs.isEmpty
+        ? (skipWelcome ? PhoneStage.code : PhoneStage.welcome)
+        : PhoneStage.dashboard;
     moonlightPackage = await AndroidBridge.moonlightPackage().catchError((_) => null);
     control = PhoneControlServer(deviceId: deviceId, deviceName: deviceName, pairedPcs: pcs);
     _attach(control);
