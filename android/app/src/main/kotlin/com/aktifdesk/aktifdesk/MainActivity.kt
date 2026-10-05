@@ -240,11 +240,8 @@ class MainActivity : FlutterActivity() {
         } else {
             true
         }
-        val overlay = if (Build.VERSION.SDK_INT >= 23) {
-            Settings.canDrawOverlays(this)
-        } else {
-            true
-        }
+        // SYSTEM_ALERT_WINDOW removed — not required for current remote-host MVP.
+        val overlay = false
         val notifications = if (Build.VERSION.SDK_INT >= 33) {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED

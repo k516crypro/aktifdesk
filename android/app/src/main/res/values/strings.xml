@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AktifDesk</string>
-    <string name="accessibility_service_description">AktifDesk uzaktan kumanda: eşleşmiş cihazın bu telefona dokunma, kaydırma ve geri/ana ekran tuşları göndermesine izin verir. Yalnızca kendi cihazınızı yönetmek için açın; istediğiniz zaman Ayarlar’dan kapatabilirsiniz.</string>
+    <string name="accessibility_service_description">AktifDesk, kendi telefonunuzu / tabletinizi uzaktan yönetmeniz için dokunma, kaydırma ve Geri / Ana ekran / Son uygulamalar girişlerini enjekte eder. Yalnızca sizin eşleştirdiğiniz cihaz (bilgisayarınız veya başka telefonunuz) komut gönderebilir. Bu, kendi cihazınız için bir uzaktan kumanda özelliğidir; başka uygulamalardan şifre veya bankacılık verisi çalmaz. Yalnızca kendi cihazınızda açın; Ayarlar → Erişilebilirlik → AktifDesk’ten istediğiniz zaman kapatabilirsiniz.</string>
+    <string name="accessibility_service_label">AktifDesk — kendi cihazımı uzaktan yönet</string>
     <string name="host_notification_channel">Uzaktan oturum</string>
     <string name="host_notification_title">AktifDesk uzaktan host</string>
     <string name="host_notification_text">Oturum açık — bağlantı ve giriş enjeksiyonu aktif</string>

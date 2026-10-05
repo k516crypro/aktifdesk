@@ -50,3 +50,8 @@ migrate_working_dir/
 node_modules
 relay/node_modules/
 dist/
+
+# Android release signing (never commit)
+**/key.properties
+**/*.jks
+**/*.keystore

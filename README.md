@@ -13,7 +13,7 @@ AktifDesk is a single Flutter codebase with two roles:
 | **Windows** (`AktifDesk.exe`) | **PC host.** Finds, starts and configures Sunshine, runs the AFK keep-awake engine, and connects to your phone after you type the phone's pairing code. Can also remote-control a phone that chose *Bu telefonu uzaktan yönet*. |
 | **Android** (`AktifDesk.apk`) | **Flexible.** Pick a role on launch: manage a Windows PC (existing), act as a **phone remote host** (show a code so another device controls this phone), or **connect by code** to remote-control another phone. |
 
-> **Status: v1.3.0 — accessibility input, Tam erişim checklist, Railway relay, hardened release.** Sunshine/Moonlight PC path unchanged. Phone remote host injects taps/swipes/keys via AccessibilityService; optional cross-network relay (baked `wss://` URL + integrity hash); R8 minify. See [Limitations](#limitations--todos).
+> **Status: v1.3.1 — release-signed APKs.** Same features as v1.3.0 (accessibility input, Tam erişim, Railway relay, R8). Sideload APKs use a dedicated release keystore (not Android Debug) to avoid browser/Play Protect “malware” heuristics for debug-signed packages. See [Download](#download) and [Signing (release keystore)](#signing-release-keystore).
 
 ---
 
@@ -27,7 +27,7 @@ AktifDesk is a single Flutter codebase with two roles:
   - Moonlight/GameStream pairing is automatic: the phone generates the **4-digit PIN** and forwards it to the PC, which submits it to Sunshine for you.
 - **Phone-as-host remote mode (v1.2 → v1.3).**
   - On Android launch pick **Bu telefonu uzaktan yönet** — pairing code + LAN discovery (port 47100) as before.
-  - **AccessibilityService** injects taps / swipes / Back-Home-Recents (no root). Turkish **Tam erişim** checklist guides Accessibility, battery exemption, notifications, optional overlay.
+  - **AccessibilityService** injects taps / swipes / Back-Home-Recents (no root). Turkish **Tam erişim** checklist guides Accessibility, battery exemption, and notifications (own-device remote; no unused overlay / MediaProjection / boot permissions).
   - Foreground service + persistent notification + wake lock for a stabler host session; MediaProjection / encoder errors are isolated (mirror still not shipped).
   - Client touchpad sends gestures over the control channel; host performs them when Accessibility is on.
   - **Uzak bağlantı**: optional cross-network path via a baked-in Railway WebSocket relay URL (`wss://…`, integrity-hashed; not editable in Settings; no Railway token in the APK). LAN remains the fast path.
@@ -121,7 +121,7 @@ Grab the latest build from **[GitHub Releases](https://github.com/k516crypro/akt
 - `AktifDesk-android-arm64-v8a.apk` / `-armeabi-v7a.apk` / `-x86_64.apk` — smaller per-ABI APKs (most phones: `arm64-v8a`)
 - `AktifDesk-windows-x64.zip` — Windows host (`AktifDesk.exe` + DLLs). Built by GitHub Actions (`windows-2022`). If the zip is missing from a release, build it locally — see [Building the Windows exe](#building-the-windows-exe).
 
-> The APK is currently signed with a debug key. Android will ask you to allow installation from unknown sources.
+> **Sideload tip:** enable **Unknown sources** / **Install unknown apps** for your browser or file manager. If Play Protect warns, choose **Install anyway** / **More details → Install anyway**. The first install from an unknown developer may still show a warning until the app is on Play Store — that is normal for sideloaded apps and is *not* the same as a debug/malware heuristic block.
 
 ---
 
@@ -210,9 +210,40 @@ gh release upload v1.2.0 .\AktifDesk-windows-x64.zip --repo k516crypro/aktifdesk
 
 ---
 
+## Signing (release keystore)
+
+Release APKs are signed with a dedicated keystore (`android/aktifdesk-release.jks`), **not** the Android Debug certificate. That removes the common browser / Play Protect “harmful app” heuristic that flags debug-signed sideloads.
+
+**Keep the keysafe (do not lose or commit it):**
+
+1. `android/key.properties` and `android/*.jks` / `*.keystore` are gitignored — **never commit** them or paste passwords into Issues/PRs/CI logs.
+2. Back up `aktifdesk-release.jks` **and** `key.properties` offline (encrypted drive / password manager). Losing the keystore means you cannot ship updates that Android will treat as the same app (signature mismatch).
+3. Local release build (with keystore present):
+   ```bash
+   flutter build apk --release
+   flutter build apk --release --split-per-abi
+   ```
+4. Verify the signer is **not** `CN=Android Debug`:
+   ```bash
+   apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
+   ```
+5. To create a new keystore on a fresh machine (only if you do not already have one):
+   ```bash
+   keytool -genkeypair -v -keystore android/aktifdesk-release.jks -alias aktifdesk \
+     -keyalg RSA -keysize 2048 -validity 10000 \
+     -dname "CN=AktifDesk, OU=AktifDesk, O=Your Name, L=City, ST=State, C=TR"
+   ```
+   Then write `android/key.properties` with `storePassword`, `keyPassword`, `keyAlias=aktifdesk`, `storeFile=aktifdesk-release.jks`.
+
+Without `key.properties`, Gradle falls back to debug signing (useful for CI without secrets). Prefer uploading only release-signed APKs to GitHub Releases.
+
+---
+
 ## Security notes (v1.3)
 
-- Release APKs use **R8 minify + resource shrink + obfuscation**. This slows casual reverse engineering; it is **not** perfect protection.
+- Release APKs are signed with a **dedicated release keystore** (see above) and use **R8 minify + resource shrink + obfuscation**. This slows casual reverse engineering; it is **not** perfect protection.
+- Launcher uses **adaptive icons** from `assets/branding/aktifdesk-icon.jpg` (full-bleed brand blue, artwork inside the circular safe zone).
+- AccessibilityService description states **own-device remote control** only. Unused dangerous permissions (`SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `RECEIVE_BOOT_COMPLETED`) were removed. Play Protect may still warn on first sideload / Accessibility enable for unknown developers until Play Store listing — that is expected.
 - Relay host is integrity-checked (SHA-256 of hostname). Runtime Settings / SharedPreferences / deeplinks cannot override it (fail closed).
 - Pairing keys use platform secure storage. Do not log codes/tokens.
 - Public relay speaks **wss://** only (except localhost `ws://` for dev).
@@ -231,7 +262,6 @@ Being honest about where v1.2.0 stands:
 - **Discovery uses UDP broadcast + a /24 sweep**, not mDNS; networks that isolate clients (guest Wi-Fi, AP isolation) prevent pairing.
 - **The phone must have AktifDesk open** for the PC (or another phone) to connect; there is no Android background service yet.
 - **Phone remote is not full TeamViewer-style control.** No MediaProjection screen mirror yet (stub only). Keep-awake needs AktifDesk in the foreground. Secure lock screens (PIN/pattern/password/biometrics) cannot be unlocked remotely without Device Owner / Accessibility abuse — we only wake the screen and dismiss an *insecure* keyguard when the OS allows it. Tap/swipe injection without root is not implemented.
-- **Release APK is debug-signed**; a proper release keystore is a TODO.
 - The UI is currently in Turkish; English localisation is a TODO.
 
 Contributions and bug reports are welcome via [Issues](https://github.com/k516crypro/aktifdesk/issues).

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Turkish "Tam erişim" checklist — guides the user through critically needed
-/// host permissions (Accessibility, battery, notifications, overlay…).
+/// host permissions (Accessibility, battery, notifications…).
 /// Does **not** request Device Admin / wipe capabilities.
 class HostPermissionsChecklist extends StatelessWidget {
   const HostPermissionsChecklist({
@@ -26,7 +26,7 @@ class HostPermissionsChecklist extends StatelessWidget {
         id: 'accessibility',
         title: 'Erişilebilirlik (zorunlu)',
         subtitle:
-            'Uzaktan dokunma, kaydırma ve Geri/Ana ekran için. Ayarlar → Erişilebilirlik → AktifDesk’i aç.',
+            'Kendi cihazınız için uzaktan dokunma/kaydırma/Geri-Ana ekran. Ayarlar → Erişilebilirlik → AktifDesk — kendi cihazımı uzaktan yönet.’i aç.',
         ok: _b('accessibility') || _b('accessibilityRunning'),
         critical: true,
       ),
@@ -43,13 +43,6 @@ class HostPermissionsChecklist extends StatelessWidget {
         subtitle: 'Kalıcı “uzaktan host” bildirimi (ön plan servisi).',
         ok: _b('notifications'),
         critical: true,
-      ),
-      _PermItem(
-        id: 'overlay',
-        title: 'Diğer uygulamaların üzerinde göster',
-        subtitle: 'İsteğe bağlı; ileride durum katmanı / yardımcı panel için.',
-        ok: _b('overlay'),
-        critical: false,
       ),
       _PermItem(
         id: 'notification_listener',
