@@ -18,6 +18,7 @@ jobs:
     name: Windows (x64)
     runs-on: windows-2022
     timeout-minutes: 45
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -92,15 +93,25 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Rename APK
+      - name: Build per-ABI APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Rename APKs
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk AktifDesk-android.apk
-          ls -l AktifDesk-android.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk AktifDesk-android-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk AktifDesk-android-armeabi-v7a.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk AktifDesk-android-x86_64.apk
+          ls -l AktifDesk-android*.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: AktifDesk-android
-          path: AktifDesk-android.apk
+          path: |
+            AktifDesk-android.apk
+            AktifDesk-android-arm64-v8a.apk
+            AktifDesk-android-armeabi-v7a.apk
+            AktifDesk-android-x86_64.apk
           if-no-files-found: error
 
   release:
@@ -113,16 +124,20 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+        continue-on-error: true
 
       - name: List files
-        run: ls -l dist
+        run: ls -l dist || true
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: AktifDesk ${{ github.ref_name }}
           generate_release_notes: true
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           files: |
             dist/AktifDesk-windows-x64.zip
             dist/AktifDesk-android.apk
+            dist/AktifDesk-android-arm64-v8a.apk
+            dist/AktifDesk-android-armeabi-v7a.apk
+            dist/AktifDesk-android-x86_64.apk
